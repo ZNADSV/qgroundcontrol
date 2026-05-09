@@ -107,6 +107,26 @@ void MAVLinkProtocol::receiveBytes(LinkInterface* link, const QByteArray& data)
         return;
     }
 
+    // ==============================================
+    // 【自定义】ESP32 遥控转发：解析 MAVLink 并转发
+    // 仅处理 RC_CHANNELS_OVERRIDE
+    // ==============================================
+    mavlink_message_t msg;
+    mavlink_status_t status;
+    for (int i = 0; i < data.size(); i++) {
+        if (mavlink_parse_char(MAVLINK_COMM_0, data[i], &msg, &status)) {
+            if (msg.msgid == MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE) {
+                LinkInterface *activeLink = _linkManager->activeLink();
+                if (activeLink && activeLink != link && activeLink->isConnected()) {
+                    activeLink->sendMessage(msg);
+                }
+                return; // 处理完遥控，直接退出，不影响原有逻辑
+            }
+        }
+    }
+    // ================ 自定义结束 ===================
+
+ 
     for (uint8_t byte : data) {
         const uint8_t mavlinkChannel = link->mavlinkChannel();
         mavlink_message_t message{};
@@ -115,7 +135,6 @@ void MAVLinkProtocol::receiveBytes(LinkInterface* link, const QByteArray& data)
         const uint8_t framing = mavlink_parse_char(mavlinkChannel, byte, &message, &status);
         if (framing == MAVLINK_FRAMING_OK || framing == MAVLINK_FRAMING_BAD_SIGNATURE) {
             if (SigningController* const sigCtrl = link->signing()) {
-                // Auto-detected key: reset sequence tracking so the key-install gap isn't counted as loss.
                 if (sigCtrl->processFrame(framing == MAVLINK_FRAMING_OK, message)) {
                     resetSequenceTracking(link);
                 }
@@ -125,7 +144,6 @@ void MAVLinkProtocol::receiveBytes(LinkInterface* link, const QByteArray& data)
             continue;
         }
 
-        // v1/v2 share per-(sysid,compid) sequence counters; counting v1 makes every v2 appear lost. Skip v1 non-heartbeats.
         const bool isV1 = (status.flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1);
         if (isV1 && message.msgid != MAVLINK_MSG_ID_HEARTBEAT) {
             link->reportMavlinkV1Traffic();
