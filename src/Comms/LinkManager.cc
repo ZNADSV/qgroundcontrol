@@ -65,14 +65,20 @@ LinkManager *LinkManager::instance()
 void LinkManager::init()
 {
     _autoConnectSettings = SettingsManager::instance()->autoConnectSettings();
-    #ifdef __android__
+    // ====================== ESP32 遥控串口 ======================
+#ifdef __android__
     SerialPortInfo info;
     info.portName = "/dev/ttyS1";
     info.baud = 115200;
-    SerialLink* link = new SerialLink(info);
-    _addSerialLink(link);
-    link->connect();
+    info.parity = SERIAL_PARITY_NONE;
+    info.dataBits = 8;
+    info.stopBits = 1;
+
+    SerialLink* esp32Link = new SerialLink(info);
+    _addSerialLink(esp32Link);
+    esp32Link->connect();
 #endif
+// ===========================================================
 
     if (!QGC::runningUnitTests()) {
         (void) connect(_portListTimer, &QTimer::timeout, this, &LinkManager::_updateAutoConnectLinks);
