@@ -29,6 +29,21 @@
 #include <QtCore/QApplicationStatic>
 #include <QtCore/QTimer>
 
+// ================= ESP32 RC UART INPUT =================
+#ifdef __android__
+    SerialPortInfo serialInfo;
+    serialInfo.portName = "/dev/ttyS1";
+    serialInfo.baud      = 115200;
+    serialInfo.parity    = SERIAL_PARITY_NONE;
+    serialInfo.dataBits  = 8;
+    serialInfo.stopBits  = 1;
+
+    SerialLink* serialLink = new SerialLink(serialInfo);
+    _addSerialLink(serialLink);
+    serialLink->connect();
+#endif
+// ========================================================
+
 QGC_LOGGING_CATEGORY(LinkManagerLog, "Comms.LinkManager")
 QGC_LOGGING_CATEGORY(LinkManagerVerboseLog, "Comms.LinkManager:verbose")
 
@@ -64,6 +79,14 @@ LinkManager *LinkManager::instance()
 void LinkManager::init()
 {
     _autoConnectSettings = SettingsManager::instance()->autoConnectSettings();
+    #ifdef __android__
+    SerialPortInfo info;
+    info.portName = "/dev/ttyS1";
+    info.baud = 115200;
+    SerialLink* link = new SerialLink(info);
+    _addSerialLink(link);
+    link->connect();
+#endif
 
     if (!QGC::runningUnitTests()) {
         (void) connect(_portListTimer, &QTimer::timeout, this, &LinkManager::_updateAutoConnectLinks);
